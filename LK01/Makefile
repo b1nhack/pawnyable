@@ -1,4 +1,4 @@
-all: ret2usr krop
+all: ret2usr krop kpti
 
 %: %.c
 	x86_64-linux-musl-gcc -static $^ -o $@
