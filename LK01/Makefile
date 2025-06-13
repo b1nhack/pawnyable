@@ -1,4 +1,4 @@
-all: ret2usr krop kpti kaslr ret2usr_smap
+all: ret2usr krop kpti kaslr ret2usr_smap ret2usr_kalsr
 
 %: %.c
 	x86_64-linux-musl-gcc -static $^ -o $@
