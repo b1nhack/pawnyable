@@ -59,7 +59,7 @@ static void get_root(void)
 
 int main(void)
 {
-	unsigned char data[0x410] = { 0 };
+	uint8_t data[0x410] = { 0 };
 	int fd;
 
 	save_state();

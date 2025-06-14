@@ -37,7 +37,7 @@ static void shell(void)
 
 int main(void)
 {
-	unsigned char data[0x500] = { 0 };
+	uint8_t data[0x500] = { 0 };
 	uintptr_t *rop_chain;
 	int fd;
 

