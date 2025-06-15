@@ -1,8 +1,10 @@
-all: heap heap_modprobe heap_cred heap_core
+all: heap heap_modprobe heap_cred heap_core heap_poweroff
 
 heap_modprobe: shell
 
 heap_core: core shell
+
+heap_poweroff: shell
 
 %: %.c
 	x86_64-linux-musl-gcc -static $< -o $@
