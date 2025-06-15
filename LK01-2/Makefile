@@ -1,6 +1,8 @@
-all: heap heap_modprobe heap_cred
+all: heap heap_modprobe heap_cred heap_core
 
 heap_modprobe: shell
+
+heap_core: core shell
 
 %: %.c
 	x86_64-linux-musl-gcc -static $< -o $@
