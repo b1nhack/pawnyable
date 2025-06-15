@@ -1,4 +1,4 @@
-all: heap heap_modprobe
+all: heap heap_modprobe heap_cred
 
 heap_modprobe: shell
 
