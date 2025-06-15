@@ -41,9 +41,9 @@ static void set_ioctl(uintptr_t ptr)
 	write(fd, data, 0x420);
 }
 
-static int fast_ioctl(int op, uintptr_t argp)
+static uint32_t fast_ioctl(int op, uintptr_t argp)
 {
-	int ret;
+	uint32_t ret;
 
 	if (target) {
 		ret = ioctl(target, op, argp);
