@@ -1,6 +1,8 @@
 /*
  * pt_regs + ret2dir
  * not working when KASLR enabled
+ *
+ * TODO: exploit with KASLR & SMAP enabled
  */
 
 #define _GNU_SOURCE
