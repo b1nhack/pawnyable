@@ -1,13 +1,26 @@
-all: uffd
+TARGET := uffd fuse
+
+CC := x86_64-linux-gnu-gcc
+CFLAGS := -Wall -Wextra
+LDFLAGS := -static
+STRIP := x86_64-linux-gnu-strip
+
+uffd: LDFLAGS += -pthread
+
+fuse: CFLAGS += $(shell pkg-config --cflags fuse)
+fuse: LDFLAGS += $(shell pkg-config --libs fuse)
+
+all: $(TARGET)
+
+iwyu:
+	include-what-you-use -Xiwyu --mapping_file=gcc.libc.imp -Xiwyu --update_comments -Xiwyu --quoted_includes_first -target x86_64-pc-linux-gnu $(ARGS) 2> iwyu.out
+	fix_includes.py --noblank_lines --update_comments --nosafe_headers --reorder --quoted_includes_first < iwyu.out
+	rm iwyu.out
 
 %: %.c
-	-$(MAKE) iwyu_$*
-	x86_64-linux-gnu-gcc -Wall -Wextra -static $< -lpthread -o $@
-	x86_64-linux-gnu-strip -s $@
-	mv $@ /media/psf/Linux/pwn/LK04/qemu/root
-	cd /media/psf/Linux/pwn/LK04/qemu/root && find . -print0 | cpio -o -0 -H newc -R root:root > ../test.cpio
+	-$(MAKE) iwyu ARGS="$(CFLAGS) $<"
+	$(CC) $(CFLAGS) $< $(LDFLAGS) -o $@
+	$(STRIP) -s $@
 
-iwyu_%: %.c
-	include-what-you-use -Xiwyu --mapping_file=gcc.libc.imp -Xiwyu --update_comments -Xiwyu --quoted_includes_first -target x86_64-pc-linux-gnu $< 2> iwyu.out
-	fix_includes.py --update_comments --nosafe_headers --reorder < iwyu.out
-	rm iwyu.out
+clean:
+	rm $(TARGET)
