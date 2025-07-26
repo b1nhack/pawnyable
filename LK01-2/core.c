@@ -1,4 +1,4 @@
-#include <stdlib.h>
+#include <stdlib.h>  // for EXIT_SUCCESS, NULL
 
 int main(void)
 {

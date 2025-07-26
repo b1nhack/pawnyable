@@ -1,12 +1,25 @@
-all: heap heap_modprobe heap_cred heap_core heap_poweroff
+TARGET := heap heap_modprobe heap_cred heap_core heap_poweroff
 
-heap_modprobe: shell
+TOOLCHAIN := x86_64-linux-musl
+CC := $(TOOLCHAIN)-gcc
+CFLAGS := -Wall -Wextra
+LDFLAGS := -static
+STRIP := $(TOOLCHAIN)-strip
 
+all: $(TARGET)
+
+heap_modprobe heap_poweroff: shell
 heap_core: core shell
 
-heap_poweroff: shell
+iwyu:
+	include-what-you-use -Xiwyu --mapping_file=gcc.libc.imp -Xiwyu --update_comments -Xiwyu --quoted_includes_first -target x86_64-pc-linux-gnu $(ARGS) 2> iwyu.out
+	fix_includes.py --noblank_lines --update_comments --nosafe_headers --reorder --quoted_includes_first < iwyu.out
+	rm iwyu.out
 
 %: %.c
-	x86_64-linux-musl-gcc -static $< -o $@
-	mv $@ /media/psf/Linux/pwn/LK01-2/qemu/root
-	cd /media/psf/Linux/pwn/LK01-2/qemu/root && find . -print0 | cpio -o -0 -H newc -R root:root > ../test.cpio
+	$(CC) $(CFLAGS) $< $(LDFLAGS) -o $@
+	$(STRIP) -s $@
+	-$(MAKE) iwyu ARGS="$(CFLAGS) $<"
+
+clean:
+	rm -f $(TARGET)

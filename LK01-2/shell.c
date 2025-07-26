@@ -1,5 +1,5 @@
-#include <stdlib.h>
-#include <unistd.h>
+#include <stdlib.h>  // for system
+#include <unistd.h>  // for setgid, setuid
 
 int main(void)
 {

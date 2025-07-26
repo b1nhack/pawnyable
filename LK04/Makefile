@@ -1,9 +1,10 @@
 TARGET := uffd fuse
 
-CC := x86_64-linux-gnu-gcc
+TOOLCHAIN := x86_64-linux-musl
+CC := $(TOOLCHAIN)-gcc
 CFLAGS := -Wall -Wextra
 LDFLAGS := -static
-STRIP := x86_64-linux-gnu-strip
+STRIP := $(TOOLCHAIN)-strip
 
 uffd: LDFLAGS += -pthread
 
@@ -18,9 +19,9 @@ iwyu:
 	rm iwyu.out
 
 %: %.c
-	-$(MAKE) iwyu ARGS="$(CFLAGS) $<"
 	$(CC) $(CFLAGS) $< $(LDFLAGS) -o $@
 	$(STRIP) -s $@
+	-$(MAKE) iwyu ARGS="$(CFLAGS) $<"
 
 clean:
 	rm $(TARGET)

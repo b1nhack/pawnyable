@@ -2,13 +2,11 @@
 #include <fcntl.h>              // for open, O_RDWR, O_CLOEXEC, O_NOCTTY
 #include <sys/types.h>          // for ssize_t
 #include <linux/userfaultfd.h>  // for uffdio_copy, uffd_msg, uffdio_register
-#include <errno.h>              // for errno
-#include <error.h>              // for error
 #include <inttypes.h>           // for uintptr_t, uint64_t, PRIx64, uint32_t
 #include <pthread.h>            // for pthread_create, pthread_detach, pthre...
 #include <sched.h>              // for sched_setaffinity, sched_yield, CPU_SET
 #include <stdbool.h>            // for true
-#include <stdio.h>              // for NULL, printf, size_t, puts
+#include <stdio.h>              // for NULL, perror, printf, size_t, puts
 #include <stdlib.h>             // for calloc, free, EXIT_FAILURE, EXIT_SUCCESS
 #include <string.h>             // for memcpy
 #include <sys/ioctl.h>          // for ioctl
@@ -357,16 +355,22 @@ int main(void)
 	mm_len = 4 * page_size;
 
 	dev = open("/dev/fleckvieh", O_RDWR);
-	if (dev < 0)
-		error(EXIT_FAILURE, errno, "open");
+	if (dev < 0) {
+		perror("[-] open");
+		return EXIT_FAILURE;
+	}
 
 	mm = (uintptr_t)mmap(NULL, mm_len, PROT_READ | PROT_WRITE,
 			     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (!mm)
-		error(EXIT_FAILURE, errno, "mmap");
+	if (!mm) {
+		perror("[-] mmap");
+		return EXIT_FAILURE;
+	}
 
-	if (register_uffd(mm, mm_len) == -1)
-		error(EXIT_FAILURE, errno, "register_uffd");
+	if (register_uffd(mm, mm_len) == -1) {
+		perror("[-] register_uffd");
+		return EXIT_FAILURE;
+	}
 
 	leak_offset((char *)mm);
 	leak_kheap((char *)(mm + page_size));

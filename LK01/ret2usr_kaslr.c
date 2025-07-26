@@ -1,8 +1,8 @@
-#include <fcntl.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <fcntl.h>   // for open, O_RDWR
+#include <stdint.h>  // for uintptr_t, uint8_t
+#include <stdio.h>   // for NULL, perror, puts
+#include <stdlib.h>  // for EXIT_FAILURE, EXIT_SUCCESS
+#include <unistd.h>  // for close, execve, write
 
 uintptr_t cs;
 uintptr_t rflags;

