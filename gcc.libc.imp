@@ -185,7 +185,7 @@
   { 'include': [ '<asm/ptrace-abi.h>', 'private', '<asm/ptrace.h>', 'public'] },
   { 'include': [ '<asm/unistd.h>', 'private', '<sys/syscall.h>', 'public'] },
   { 'include': [ '<linux/limits.h>', 'private', '<limits.h>', 'public'] },   # PATH_MAX
-  { 'include': [ '<linux/prctl.h>', 'private', '<sys/prctl.h>', 'public'] },
+  { 'include': [ '"linux/prctl.h"', 'private', '<sys/prctl.h>', 'public'] },
   { 'include': [ '<sys/ucontext.h>', 'private', '<ucontext.h>', 'public'] },
   { 'include': [ '<stdint.h>', 'public', '<inttypes.h>', 'public'] },
 ]
